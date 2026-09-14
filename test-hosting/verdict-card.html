@@ -1,0 +1,266 @@
+<!--
+  index-device-integration.html
+  ================================
+  Standalone, ready-to-host Telegram Mini App testing DeviceStorage and
+  HapticFeedback (core.telegram.org/bots#integrate-with-services-and-devices).
+  See this folder's live_bot_device_integration.py to wire a real bot
+  button to whatever URL this ends up hosted at.
+
+  IMPORTANT - hosting note: Telegram Web Apps require a real public
+  HTTPS URL; a Claude Artifact was tried first and does NOT work here -
+  artifacts require an authenticated claude.ai session to render, which
+  Telegram's webview can never carry, so it hits a sign-in wall instead
+  of the page. Confirmed live by actually trying it. Needs real static
+  hosting instead (GitHub Pages / Netlify / Vercel - see the concept's
+  chat notes for the fastest no-account option).
+
+  DeviceStorage/HapticFeedback method signatures verified against
+  core.telegram.org/bots/webapps before writing this - see this
+  folder's other files for that research.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Angket Bot — Verdict (Device Integration)</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ink-950: #f6f5f1;
+    --panel: #ffffff;
+    --panel-line: #e4e1d8;
+    --text: #1b1f24;
+    --hint: #6b7280;
+    --accent: #2f8f88;
+    --accent-text: #ffffff;
+    --danger: #c8443a;
+    --danger-bg: #f9e6e4;
+    --warn: #b3781f;
+    --warn-bg: #f8ecd9;
+    --safe: #3f8158;
+    --safe-bg: #e3f0e6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink-950: #10131a; --panel: #1a1e28; --panel-line: #2a2f3b;
+      --text: #eef0f0; --hint: #8b93a1; --accent: #4fb8b0; --accent-text: #08201e;
+      --danger: #ec6a5f; --danger-bg: #3a1e1c;
+      --warn: #e3ad55; --warn-bg: #3a2c14;
+      --safe: #6fbd88; --safe-bg: #17301f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink-950: #10131a; --panel: #1a1e28; --panel-line: #2a2f3b;
+    --text: #eef0f0; --hint: #8b93a1; --accent: #4fb8b0; --accent-text: #08201e;
+    --danger: #ec6a5f; --danger-bg: #3a1e1c;
+    --warn: #e3ad55; --warn-bg: #3a2c14;
+    --safe: #6fbd88; --safe-bg: #17301f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--tg-theme-bg-color, var(--ink-950));
+    color: var(--tg-theme-text-color, var(--text));
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    padding: 20px 16px 28px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--tg-theme-hint-color, var(--hint)); margin: 0 2px 2px;
+  }
+  .card {
+    background: var(--tg-theme-secondary-bg-color, var(--panel));
+    border: 1px solid var(--panel-line); border-radius: 14px; padding: 18px 20px;
+  }
+  .hero { display: flex; flex-direction: column; gap: 10px; }
+  .verdict-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .verdict-badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+    padding: 5px 12px; border-radius: 999px;
+  }
+  .verdict-badge.dangerous { background: var(--danger-bg); color: var(--danger); }
+  .verdict-badge.suspicious { background: var(--warn-bg); color: var(--warn); }
+  .verdict-badge.safe { background: var(--safe-bg); color: var(--safe); }
+  .verdict-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .readout { display: flex; align-items: baseline; gap: 10px; }
+  .risk-number {
+    font-family: "IBM Plex Mono", monospace; font-size: 48px; font-weight: 600;
+    line-height: 1; font-variant-numeric: tabular-nums;
+  }
+  .risk-number.dangerous { color: var(--danger); }
+  .risk-number.suspicious { color: var(--warn); }
+  .risk-number.safe { color: var(--safe); }
+  .risk-label { font-size: 12px; color: var(--tg-theme-hint-color, var(--hint)); text-transform: uppercase; letter-spacing: 0.06em; }
+  .bar-track { height: 6px; border-radius: 4px; background: var(--panel-line); overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+  .bar-fill.dangerous { background: var(--danger); }
+  .bar-fill.suspicious { background: var(--warn); }
+  .bar-fill.safe { background: var(--safe); }
+  .host-row { display: flex; align-items: center; gap: 8px; }
+  .host { font-family: "IBM Plex Mono", monospace; font-size: 14px; word-break: break-all; color: var(--tg-theme-text-color, var(--text)); }
+  .card-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+  .card-head h2 { font-size: 13px; font-weight: 600; margin: 0; color: var(--tg-theme-hint-color, var(--hint)); text-transform: uppercase; letter-spacing: 0.06em; }
+  .chevron { width: 18px; height: 18px; color: var(--tg-theme-hint-color, var(--hint)); transition: transform 0.25s ease; flex: none; }
+  .chevron.collapsed { transform: rotate(-90deg); }
+  ul.reasons-list { margin: 12px 0 0; padding-left: 18px; }
+  ul.reasons-list li { margin-bottom: 8px; line-height: 1.5; font-size: 14px; }
+  .reasons-body { overflow: hidden; transition: grid-template-rows 0.25s ease; display: grid; grid-template-rows: 1fr; }
+  .reasons-body.collapsed { grid-template-rows: 0fr; }
+  .reasons-body > div { overflow: hidden; }
+  .status-line { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--tg-theme-hint-color, var(--hint)); margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--panel-line); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+  .status-dot.err { background: var(--danger); }
+  ul.rec-list { margin: 10px 0 0; padding-left: 18px; }
+  ul.rec-list li { margin-bottom: 8px; line-height: 1.5; font-size: 14px; }
+  .cta {
+    display: block; width: 100%; padding: 14px; margin-top: 4px; border: none; border-radius: 12px; cursor: pointer;
+    background: var(--tg-theme-button-color, var(--accent)); color: var(--tg-theme-button-text-color, var(--accent-text));
+    font-family: inherit; font-size: 15px; font-weight: 600; text-align: center;
+  }
+  .cta:focus-visible, .card-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { .bar-fill, .chevron, .reasons-body { transition: none; } }
+</style>
+</head>
+<body>
+
+<div class="hero card">
+  <p class="eyebrow">Angket Bot &middot; link scan</p>
+  <div class="verdict-row">
+    <span class="verdict-badge dangerous" id="badge"><span class="dot"></span><span id="badge-text">DANGEROUS</span></span>
+  </div>
+  <div class="readout">
+    <span class="risk-number dangerous" id="risk-pct">100</span>
+    <span class="risk-label">% estimated<br>scam risk</span>
+  </div>
+  <div class="bar-track"><div class="bar-fill dangerous" id="bar" style="width: 100%"></div></div>
+</div>
+
+<div class="card">
+  <p class="eyebrow" style="margin-bottom:8px;">Scanned link</p>
+  <div class="host-row"><span class="host" id="host">free-iphone-winner.tk</span></div>
+</div>
+
+<div class="card">
+  <div class="card-head" id="reasons-toggle" role="button" tabindex="0" aria-expanded="true">
+    <h2>Reasons</h2>
+    <svg class="chevron" id="chevron" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+  <div class="reasons-body" id="reasons-body"><div>
+    <ul class="reasons-list" id="reasons"></ul>
+  </div></div>
+  <div class="status-line" id="status-line"><span class="status-dot" id="status-dot"></span><span id="storage-status">Checking device storage&hellip;</span></div>
+</div>
+
+<div class="card">
+  <p class="eyebrow" style="margin-bottom:8px;">What you can do</p>
+  <ul class="rec-list" id="recommendations"></ul>
+</div>
+
+<button class="cta" id="close-btn">Got it</button>
+
+<script>
+  const DEMO_VERDICT = {
+    level: "dangerous",
+    host: "free-iphone-winner.tk",
+    risk_percentage: 100,
+    reasons: [
+      "Domain ends in .tk, a free TLD heavily used for scams.",
+      "Contains scam-typical words: claim, free, winner.",
+      "The host name does not resolve in DNS at all.",
+    ],
+    recommendations: [
+      "Do not open this link, log in, or enter any codes, passwords, or card details.",
+      "Block and report the sender — this pattern matches known scam tactics.",
+    ],
+  };
+
+  const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  const STORAGE_KEY = "angket_reasons_collapsed";
+  const LABELS = { dangerous: "DANGEROUS", suspicious: "SUSPICIOUS", safe: "SAFE" };
+
+  // ready()/expand() FIRST, before any other WebApp API call (including
+  // HapticFeedback inside render() below) - a real bug caught by live
+  // testing: haptics didn't fire when render() ran before ready() had
+  // told Telegram's bridge the app finished initializing.
+  if (tg) { tg.ready(); tg.expand(); }
+
+  function render(v) {
+    document.getElementById("badge").className = "verdict-badge " + v.level;
+    document.getElementById("badge-text").textContent = LABELS[v.level] || v.level.toUpperCase();
+    document.getElementById("risk-pct").textContent = v.risk_percentage;
+    document.getElementById("risk-pct").className = "risk-number " + v.level;
+    const bar = document.getElementById("bar");
+    bar.className = "bar-fill " + v.level;
+    bar.style.width = v.risk_percentage + "%";
+    document.getElementById("host").textContent = v.host;
+    document.getElementById("reasons").innerHTML = v.reasons.map(r => `<li>${r}</li>`).join("");
+    document.getElementById("recommendations").innerHTML = v.recommendations.map(r => `<li>${r}</li>`).join("");
+
+    if (tg && tg.HapticFeedback) {
+      const hapticMap = { dangerous: "error", suspicious: "warning", safe: "success" };
+      tg.HapticFeedback.notificationOccurred(hapticMap[v.level] || "warning");
+    }
+  }
+
+  function setReasonsCollapsed(collapsed) {
+    document.getElementById("reasons-body").classList.toggle("collapsed", collapsed);
+    document.getElementById("chevron").classList.toggle("collapsed", collapsed);
+    document.getElementById("reasons-toggle").setAttribute("aria-expanded", String(!collapsed));
+  }
+
+  render(DEMO_VERDICT);
+
+  const statusText = document.getElementById("storage-status");
+  const statusDot = document.getElementById("status-dot");
+  if (tg && tg.DeviceStorage) {
+    tg.DeviceStorage.getItem(STORAGE_KEY, (err, value) => {
+      if (err) {
+        statusDot.classList.add("err");
+        statusText.textContent = "Device storage read failed — defaulting to expanded.";
+        setReasonsCollapsed(false);
+        return;
+      }
+      setReasonsCollapsed(value === "true");
+      statusText.textContent = "Preference loaded from this device.";
+    });
+  } else {
+    statusDot.classList.add("err");
+    statusText.textContent = "Device storage unavailable (opened outside Telegram) — not persisted.";
+  }
+
+  function toggleReasons() {
+    const nowCollapsed = !document.getElementById("reasons-body").classList.contains("collapsed");
+    setReasonsCollapsed(nowCollapsed);
+    if (tg && tg.DeviceStorage) {
+      tg.DeviceStorage.setItem(STORAGE_KEY, String(nowCollapsed), (err) => {
+        statusDot.classList.toggle("err", !!err);
+        statusText.textContent = err
+          ? "Failed to save preference to this device."
+          : "Preference saved — will persist next time you open this.";
+      });
+    }
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  }
+  document.getElementById("reasons-toggle").addEventListener("click", toggleReasons);
+  document.getElementById("reasons-toggle").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleReasons(); }
+  });
+
+  if (tg) {
+    if (tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+      try { render(JSON.parse(decodeURIComponent(tg.initDataUnsafe.start_param))); }
+      catch (e) { /* fall back to demo data, already rendered above */ }
+    }
+    document.getElementById("close-btn").addEventListener("click", () => tg.close());
+  } else {
+    document.getElementById("close-btn").addEventListener("click", () => alert("Would close the Mini App inside Telegram."));
+  }
+</script>
+
+</body>
+</html>
