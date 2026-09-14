@@ -33,6 +33,17 @@
   Usage/How-to-use stay reference-only (read-only rows below) - they're
   dynamic (usage) or long-form (how-to) content not worth duplicating
   here yet; only Language and Policy were asked for so far.
+
+  Scan behavior is Premium-only (2026-09-14, direct user spec) - the
+  ignore-threshold slider and message-detail control are locked/dimmed
+  and non-interactive for a Freemium plan; tapping the locked area
+  shows an upsell instead of a silent no-op. No real payment rail
+  exists yet (see subscription.py's is_paid_user() in the real bot,
+  which always returns False today - tied to the still-unresolved KHQR
+  payment-rail decision), so "plan" here is a LOCAL DEMO
+  toggle (the Upgrade/Switch to Freemium button just flips it) purely
+  so the gate is actually end-to-end testable before a real plan check
+  exists to back it.
 -->
 <!doctype html>
 <html lang="en">
@@ -117,6 +128,15 @@
   .collapsible-body > div { overflow: hidden; }
   .policy-content { padding: 0 16px 16px; font-size: 13px; line-height: 1.6; }
   .policy-content b { font-weight: 600; }
+
+  .locked { opacity: 0.5; }
+  .locked input[type="range"] { pointer-events: none; }
+  .locked .segmented button { pointer-events: none; }
+  .lock-badge {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+    background: var(--warn); color: #fff; flex: none;
+  }
 </style>
 </head>
 <body class="pb-10">
@@ -183,25 +203,34 @@
     </div>
   </section>
 
-  <!-- Scan behavior -->
+  <!-- Scan behavior - Premium-only (2026-09-14, direct user spec): both
+       controls below are locked/disabled for a Freemium plan. -->
   <section class="card">
-    <p class="eyebrow px-4 pt-3 pb-1" data-i18n="scan_behavior">Scan behavior</p>
-    <div class="row" style="flex-direction: column; align-items: stretch; gap: 8px;">
-      <div class="flex items-center justify-between">
-        <div class="row-label" data-i18n="ignore_below">Ignore results below</div>
-        <span class="mono text-sm font-semibold" id="threshold-value">25%</span>
-      </div>
-      <input type="range" id="threshold-slider" min="0" max="80" step="5" value="25">
-      <div class="row-hint" data-i18n="ignore_hint">Verdicts scoring under this risk % won't be flagged to you</div>
+    <div class="flex items-center justify-between px-4 pt-3 pb-1">
+      <p class="eyebrow m-0" data-i18n="scan_behavior">Scan behavior</p>
+      <span class="lock-badge" id="scan-behavior-lock" hidden data-i18n="premium_badge">🔒 Premium</span>
     </div>
-    <div class="row">
-      <div>
-        <div class="row-label" data-i18n="message_detail">Message detail</div>
-        <div class="row-hint" data-i18n="message_detail_hint">How much explanation a reply includes</div>
+    <p class="text-xs px-4 pb-2" style="color: var(--tg-theme-hint-color, var(--hint));" id="scan-behavior-upsell" hidden data-i18n="premium_required_hint">
+      Upgrade to Premium to change these.
+    </p>
+    <div id="scan-behavior-controls">
+      <div class="row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <div class="flex items-center justify-between">
+          <div class="row-label" data-i18n="ignore_below">Ignore results below</div>
+          <span class="mono text-sm font-semibold" id="threshold-value">25%</span>
+        </div>
+        <input type="range" id="threshold-slider" min="0" max="80" step="5" value="25">
+        <div class="row-hint" data-i18n="ignore_hint">Verdicts scoring under this risk % won't be flagged to you</div>
       </div>
-      <div class="segmented" id="verbosity-segmented">
-        <button data-value="reduced" type="button" data-i18n="reduced">Reduced</button>
-        <button data-value="full" type="button" class="active" data-i18n="full">Full</button>
+      <div class="row">
+        <div>
+          <div class="row-label" data-i18n="message_detail">Message detail</div>
+          <div class="row-hint" data-i18n="message_detail_hint">How much explanation a reply includes</div>
+        </div>
+        <div class="segmented" id="verbosity-segmented">
+          <button data-value="reduced" type="button" data-i18n="reduced">Reduced</button>
+          <button data-value="full" type="button" class="active" data-i18n="full">Full</button>
+        </div>
       </div>
     </div>
   </section>
@@ -242,6 +271,9 @@
       </div>
       <button class="text-sm font-semibold px-3 py-1.5 rounded-lg btn-primary" id="upgrade-btn" data-i18n="upgrade">Upgrade</button>
     </div>
+    <p class="text-xs px-4 pb-3" style="color: var(--tg-theme-hint-color, var(--hint));" data-i18n="plan_demo_note">
+      No real payment yet - this switches a local demo plan so Premium-only settings above can be tested.
+    </p>
   </section>
 
   <!-- Website -->
@@ -280,10 +312,12 @@
       automation: "Automation", live_detect: "Live Detect", live_detect_hint: "Auto-scan messages in your connected business chats",
       scan_behavior: "Scan behavior", ignore_below: "Ignore results below", ignore_hint: "Verdicts scoring under this risk % won't be flagged to you",
       message_detail: "Message detail", message_detail_hint: "How much explanation a reply includes", reduced: "Reduced", full: "Full",
+      premium_badge: "🔒 Premium", premium_required_hint: "Upgrade to Premium to change these.",
       policy: "Policy", policy_view_hint: "Tap to expand - same text as /policy in chat",
       commands: "Commands", commands_hint: "Reference only for now - type these directly in the chat with Angket Bot.",
       cmd_howto: "Learn how to use Angket", cmd_usage: "Check your daily scan quota",
-      subscription: "Subscription", current_plan: "Current plan", freemium: "Freemium", upgrade: "Upgrade",
+      subscription: "Subscription", current_plan: "Current plan", freemium: "Freemium", premium: "Premium", upgrade: "Upgrade", downgrade: "Switch to Freemium",
+      plan_demo_note: "No real payment yet - this switches a local demo plan so Premium-only settings above can be tested.",
       website: "Angket website", website_hint: "Not hosted yet - coming soon", visit: "Visit",
       saving: "Saving…", saved_cloud: "Saved to your Telegram account", saved_local: "Saved locally (open inside Telegram to sync)", save_failed: "Failed to save - try again",
       synced: "Synced with your Telegram account", outside_telegram: "Opened outside Telegram - using this browser only", loading: "Loading your settings…",
@@ -298,10 +332,12 @@
       automation: "ស្វ័យប្រវត្តិកម្ម", live_detect: "ការរកឃើញផ្ទាល់", live_detect_hint: "ស្កេនសារដោយស្វ័យប្រវត្តិនៅក្នុងបន្ទប់អាជីវកម្មដែលបានភ្ជាប់",
       scan_behavior: "ឥរិយាបថស្កេន", ignore_below: "មិនរាយការណ៍លទ្ធផលទាបជាង", ignore_hint: "លទ្ធផលដែលមានហានិភ័យក្រោមភាគរយនេះ នឹងមិនត្រូវបានជូនដំណឹងទេ",
       message_detail: "លម្អិតសារ", message_detail_hint: "ចំនួនការពន្យល់ក្នុងចម្លើយតប", reduced: "កាត់បន្ថយ", full: "ពេញលេញ",
+      premium_badge: "🔒 ប្រុីមៀម", premium_required_hint: "ដំឡើងទៅប្រុីមៀម ដើម្បីផ្លាស់ប្តូរការកំណត់ទាំងនេះ។",
       policy: "គោលការណ៍", policy_view_hint: "ចុចដើម្បីមើល - អត្ថបទដូចគ្នានឹង /policy ក្នុងបន្ទប់ជជែក",
       commands: "ពាក្យបញ្ជា", commands_hint: "សម្រាប់យោងតែប៉ុណ្ណោះ - វាយពាក្យទាំងនេះផ្ទាល់នៅក្នុងបន្ទប់ជជែកជាមួយ Angket Bot។",
       cmd_howto: "ស្វែងយល់ពីរបៀបប្រើប្រាស់ Angket", cmd_usage: "ពិនិត្យកូតាស្កេនប្រចាំថ្ងៃរបស់អ្នក",
-      subscription: "ការជាវ", current_plan: "គម្រោងបច្ចុប្បន្ន", freemium: "ឥតគិតថ្លៃ", upgrade: "ដំឡើងកម្រិត",
+      subscription: "ការជាវ", current_plan: "គម្រោងបច្ចុប្បន្ន", freemium: "ឥតគិតថ្លៃ", premium: "ប្រុីមៀម", upgrade: "ដំឡើងកម្រិត", downgrade: "ប្តូរទៅឥតគិតថ្លៃ",
+      plan_demo_note: "មិនទាន់មានការទូទាត់ពិតប្រាកដនៅឡើយទេ - នេះគ្រាន់តែប្តូរគម្រោងសាកល្បងក្នុងម៉ាស៊ីននេះ ដើម្បីសាកល្បងការកំណត់ដែលសម្រាប់តែប្រុីមៀម។",
       website: "គេហទំព័រ Angket", website_hint: "មិនទាន់អនឡាញនៅឡើយទេ - ឆាប់ៗនេះ", visit: "ទស្សនា",
       saving: "កំពុងរក្សាទុក…", saved_cloud: "បានរក្សាទុកទៅគណនី Telegram របស់អ្នក", saved_local: "បានរក្សាទុកក្នុងម៉ាស៊ីននេះ (បើកពី Telegram ដើម្បីធ្វើសមកាលកម្ម)", save_failed: "រក្សាទុកមិនបានសម្រេច - សូមព្យាយាមម្តងទៀត",
       synced: "បានធ្វើសមកាលកម្មជាមួយគណនី Telegram របស់អ្នក", outside_telegram: "បើកនៅក្រៅ Telegram - ប្រើតែក្នុងកម្មវិធីរុករកនេះប៉ុណ្ណោះ", loading: "កំពុងផ្ទុកការកំណត់របស់អ្នក…",
@@ -340,7 +376,8 @@
   };
 
   const SETTINGS_KEY = "angket_settings_v1";
-  const DEFAULTS = { live_detect: true, ignore_below: 25, verbosity: "full", lang: "en" };
+  const DEFAULTS = { live_detect: true, ignore_below: 25, verbosity: "full", lang: "en", plan: "freemium" };
+  function isPremium() { return settings.plan !== "freemium"; }
 
   const saveDot = document.getElementById("save-dot");
   const saveText = document.getElementById("save-text");
@@ -401,6 +438,23 @@
       btn.classList.toggle("active", btn.dataset.value === settings.verbosity);
     });
     document.getElementById("policy-text").innerHTML = POLICY[settings.lang] || POLICY.en;
+
+    // Scan behavior - Premium-only. Freemium sees both controls locked
+    // (dimmed, pointer-events off - see .locked CSS) plus a badge/upsell
+    // line; the underlying values stay whatever they were, they just
+    // can't be CHANGED until settings.plan isn't "freemium".
+    const premium = isPremium();
+    document.getElementById("scan-behavior-controls").classList.toggle("locked", !premium);
+    document.getElementById("scan-behavior-lock").hidden = premium;
+    document.getElementById("scan-behavior-upsell").hidden = premium;
+    document.getElementById("threshold-slider").disabled = !premium;
+    document.querySelectorAll("#verbosity-segmented button").forEach((btn) => { btn.disabled = !premium; });
+
+    document.getElementById("plan-label").textContent = premium ? t("premium") : t("freemium");
+    document.getElementById("plan-label").removeAttribute("data-i18n");
+    document.getElementById("upgrade-btn").textContent = premium ? t("downgrade") : t("upgrade");
+    document.getElementById("upgrade-btn").removeAttribute("data-i18n");
+
     applyI18n();
   }
 
@@ -431,18 +485,30 @@
   });
 
   document.getElementById("threshold-slider").addEventListener("input", (e) => {
+    if (!isPremium()) return; // belt-and-suspenders - disabled + pointer-events:none already block this
     settings.ignore_below = Number(e.target.value);
     document.getElementById("threshold-value").textContent = settings.ignore_below + "%";
   });
-  document.getElementById("threshold-slider").addEventListener("change", scheduleSave);
+  document.getElementById("threshold-slider").addEventListener("change", () => { if (isPremium()) scheduleSave(); });
 
   document.getElementById("verbosity-segmented").addEventListener("click", (e) => {
+    if (!isPremium()) return;
     const btn = e.target.closest("button[data-value]");
     if (!btn) return;
     settings.verbosity = btn.dataset.value;
     applyToUI();
     if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
     scheduleSave();
+  });
+
+  // Freemium: the controls above have pointer-events:none (see .locked
+  // CSS), so a tap in that area lands on THIS container instead - gives
+  // real feedback (haptic + upsell) instead of a silent no-op tap.
+  document.getElementById("scan-behavior-controls").addEventListener("click", () => {
+    if (isPremium()) return;
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("warning");
+    const msg = t("premium_required_hint");
+    if (tg && tg.showAlert) tg.showAlert(msg); else alert(msg);
   });
 
   function setPolicyCollapsed(collapsed) {
@@ -478,9 +544,14 @@
     if (tg && tg.showConfirm) tg.showConfirm("Delete all your saved data? (not yet functional)", () => proceed());
     else proceed();
   });
+  // No real payment rail yet (see this file's header comment) - this
+  // flips a LOCAL demo plan, purely so the Premium-only gate on scan
+  // behavior above is actually testable end to end. Not a real upgrade.
   document.getElementById("upgrade-btn").addEventListener("click", () => {
-    const msg = "Subscription plans aren't wired up here yet - use /subscription in the chat for now.";
-    if (tg && tg.showAlert) tg.showAlert(msg); else alert(msg);
+    settings.plan = isPremium() ? "freemium" : "premium";
+    applyToUI();
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("success");
+    scheduleSave();
   });
 </script>
 
