@@ -1,11 +1,357 @@
-<!DOCTYPE html>
+<!--
+  angket-mini-apps/settings/index.html
+  =======================================
+  Telegram Mini App settings screen (WebAppInfo target for a future
+  real /settings button - see next-gen-test/concepts/settings-miniapp-py/
+  README.md for the full plan/spec this implements and the open
+  questions still unresolved before this is wired into the real bot).
+
+  Status: FRONTEND ONLY, demo/local state. No backend exists yet (the
+  main website isn't hosted - see the "Website" row below) - every
+  control here persists via Telegram's own CloudStorage
+  (per-user key/value tied to this bot, documented at
+  core.telegram.org/bots/webapps#cloudstorage) rather than a real
+  server, with a localStorage fallback when opened outside Telegram
+  (CloudStorage is undefined there) purely so the page is still
+  clickable/testable in a plain browser.
+
+  CloudStorage, not DeviceStorage - the older verdict-mini-app concept
+  used `tg.DeviceStorage`, which does NOT appear in Telegram's own
+  WebApp API docs (CloudStorage/BiometricManager/HapticFeedback/
+  MainButton/BackButton/SettingsButton do). Using the verified-real API
+  here since these toggles need actual persistence, not just a demo.
+
+  The "Quick Commands" list is READ-ONLY reference, not live buttons -
+  a Mini App has no way to make the bot act on the user's behalf
+  without a real backend calling the Bot API server-side, which doesn't
+  exist yet. Flagged inline below too.
+-->
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Angket Bot — Settings</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --ink-950: #f6f5f1; --panel: #ffffff; --panel-line: #e4e1d8;
+    --text: #1b1f24; --hint: #6b7280; --accent: #2f8f88; --accent-text: #ffffff;
+    --danger: #c8443a; --safe: #3f8158; --warn: #b3781f;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink-950: #10131a; --panel: #1a1e28; --panel-line: #2a2f3b;
+      --text: #eef0f0; --hint: #8b93a1; --accent: #4fb8b0; --accent-text: #08201e;
+      --danger: #ec6a5f; --safe: #6fbd88; --warn: #e3ad55;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink-950: #10131a; --panel: #1a1e28; --panel-line: #2a2f3b;
+    --text: #eef0f0; --hint: #8b93a1; --accent: #4fb8b0; --accent-text: #08201e;
+    --danger: #ec6a5f; --safe: #6fbd88; --warn: #e3ad55;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; min-height: 100vh;
+    background: var(--tg-theme-bg-color, var(--ink-950));
+    color: var(--tg-theme-text-color, var(--text));
+    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+  .card {
+    background: var(--tg-theme-secondary-bg-color, var(--panel));
+    border: 1px solid var(--panel-line); border-radius: 14px;
+  }
+  .eyebrow {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--tg-theme-hint-color, var(--hint));
+  }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; }
+  .row + .row { border-top: 1px solid var(--panel-line); }
+  .row-label { font-size: 15px; font-weight: 500; }
+  .row-hint { font-size: 12px; color: var(--tg-theme-hint-color, var(--hint)); margin-top: 2px; }
+
+  /* Toggle switch */
+  .switch { position: relative; width: 46px; height: 27px; flex: none; }
+  .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+  .switch .track {
+    position: absolute; inset: 0; border-radius: 999px; background: var(--panel-line);
+    transition: background 0.2s ease;
+  }
+  .switch .thumb {
+    position: absolute; top: 2px; left: 2px; width: 23px; height: 23px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.2s ease;
+  }
+  .switch input:checked + .track { background: var(--accent); }
+  .switch input:checked + .track + .thumb { transform: translateX(19px); }
+  .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Segmented control */
+  .segmented { display: inline-flex; background: var(--panel-line); border-radius: 10px; padding: 3px; gap: 2px; }
+  .segmented button {
+    border: none; background: transparent; padding: 7px 14px; border-radius: 8px;
+    font-family: inherit; font-size: 13px; font-weight: 600; color: var(--tg-theme-hint-color, var(--hint));
+    cursor: pointer;
+  }
+  .segmented button.active { background: var(--tg-theme-secondary-bg-color, var(--panel)); color: var(--tg-theme-text-color, var(--text)); }
+
+  input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 4px; background: var(--panel-line); }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.25); cursor: pointer; margin-top: -8px;
+  }
+  input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; }
+
+  .btn-primary {
+    background: var(--tg-theme-button-color, var(--accent)); color: var(--tg-theme-button-text-color, var(--accent-text));
+  }
+  .status-line { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--tg-theme-hint-color, var(--hint)); }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--safe); flex: none; }
+  .status-dot.err { background: var(--danger); }
+  .status-dot.pending { background: var(--warn); }
+</style>
 </head>
-<body>
-    
+<body class="pb-10">
+
+<div class="max-w-md mx-auto px-4 pt-5 flex flex-col gap-5">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold m-0">⚙️ Settings</h1>
+      <p class="text-sm m-0 mt-0.5" style="color: var(--tg-theme-hint-color, var(--hint));">Manage your Angket Bot preferences</p>
+    </div>
+  </div>
+
+  <!-- Account -->
+  <section class="card">
+    <p class="eyebrow px-4 pt-3 pb-1">Account</p>
+    <div class="row">
+      <div>
+        <div class="row-label" id="account-name">Guest</div>
+        <div class="row-hint" id="account-username">Open this from Telegram to see your account</div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="row-label">Export my data</div>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg btn-primary" id="export-btn">Export</button>
+    </div>
+    <div class="row">
+      <div>
+        <div class="row-label" style="color: var(--danger);">Delete my data</div>
+        <div class="row-hint">Removes your scan history and preferences</div>
+      </div>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg" style="color: var(--danger); border: 1px solid var(--danger); background: transparent;" id="delete-btn">Delete</button>
+    </div>
+  </section>
+
+  <!-- Live Detect -->
+  <section class="card">
+    <p class="eyebrow px-4 pt-3 pb-1">Automation</p>
+    <div class="row">
+      <div>
+        <div class="row-label">Live Detect</div>
+        <div class="row-hint">Auto-scan messages in your connected business chats</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="live-detect-toggle" checked>
+        <span class="track"></span>
+        <span class="thumb"></span>
+      </label>
+    </div>
+  </section>
+
+  <!-- Scan behavior -->
+  <section class="card">
+    <p class="eyebrow px-4 pt-3 pb-1">Scan behavior</p>
+    <div class="row" style="flex-direction: column; align-items: stretch; gap: 8px;">
+      <div class="flex items-center justify-between">
+        <div class="row-label">Ignore results below</div>
+        <span class="mono text-sm font-semibold" id="threshold-value">25%</span>
+      </div>
+      <input type="range" id="threshold-slider" min="0" max="80" step="5" value="25">
+      <div class="row-hint">Verdicts scoring under this risk % won't be flagged to you</div>
+    </div>
+    <div class="row">
+      <div>
+        <div class="row-label">Message detail</div>
+        <div class="row-hint">How much explanation a reply includes</div>
+      </div>
+      <div class="segmented" id="verbosity-segmented">
+        <button data-value="reduced" type="button">Reduced</button>
+        <button data-value="full" type="button" class="active">Full</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Language & help (existing commands, read-only reference) -->
+  <section class="card">
+    <p class="eyebrow px-4 pt-3 pb-1">Commands</p>
+    <p class="text-xs px-4 pb-2" style="color: var(--tg-theme-hint-color, var(--hint));">
+      Reference only for now - type these directly in the chat with Angket Bot.
+    </p>
+    <div class="row"><div class="row-label mono text-sm">/language</div><div class="row-hint">Switch between English and Khmer</div></div>
+    <div class="row"><div class="row-label mono text-sm">/howto</div><div class="row-hint">Learn how to use Angket</div></div>
+    <div class="row"><div class="row-label mono text-sm">/usage</div><div class="row-hint">Check your daily scan quota</div></div>
+    <div class="row"><div class="row-label mono text-sm">/policy</div><div class="row-hint">View Angket's policy</div></div>
+  </section>
+
+  <!-- Subscription -->
+  <section class="card">
+    <p class="eyebrow px-4 pt-3 pb-1">Subscription</p>
+    <div class="row">
+      <div>
+        <div class="row-label">Current plan</div>
+        <div class="row-hint" id="plan-label">Freemium</div>
+      </div>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg btn-primary" id="upgrade-btn">Upgrade</button>
+    </div>
+  </section>
+
+  <!-- Website -->
+  <section class="card">
+    <div class="row">
+      <div>
+        <div class="row-label">Angket website</div>
+        <div class="row-hint">Not hosted yet - coming soon</div>
+      </div>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg" style="color: var(--tg-theme-hint-color, var(--hint)); border: 1px solid var(--panel-line); background: transparent;" disabled>Visit</button>
+    </div>
+  </section>
+
+  <div class="status-line justify-center pt-1" id="save-status">
+    <span class="status-dot" id="save-dot"></span>
+    <span id="save-text">Loading your settings…</span>
+  </div>
+
+</div>
+
+<script>
+  const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+  if (tg) { tg.ready(); tg.expand(); }
+
+  const STORAGE_KEY = "angket_settings_v1";
+  const DEFAULTS = { live_detect: true, ignore_below: 25, verbosity: "full" };
+
+  const saveDot = document.getElementById("save-dot");
+  const saveText = document.getElementById("save-text");
+
+  function setStatus(kind, text) {
+    saveDot.className = "status-dot" + (kind === "err" ? " err" : kind === "pending" ? " pending" : "");
+    saveText.textContent = text;
+  }
+
+  // CloudStorage (real, documented Telegram WebApp API - persists per
+  // user, tied to this bot, no backend needed) with a localStorage
+  // fallback purely so this page is still testable in a plain browser
+  // (CloudStorage is undefined outside Telegram's webview).
+  function storageGet(key) {
+    return new Promise((resolve) => {
+      if (tg && tg.CloudStorage) {
+        tg.CloudStorage.getItem(key, (err, value) => resolve(err ? null : value));
+      } else {
+        resolve(localStorage.getItem(key));
+      }
+    });
+  }
+  function storageSet(key, value) {
+    return new Promise((resolve, reject) => {
+      if (tg && tg.CloudStorage) {
+        tg.CloudStorage.setItem(key, value, (err) => err ? reject(err) : resolve());
+      } else {
+        try { localStorage.setItem(key, value); resolve(); } catch (e) { reject(e); }
+      }
+    });
+  }
+
+  let settings = { ...DEFAULTS };
+  let saveTimer = null;
+
+  function scheduleSave() {
+    setStatus("pending", "Saving…");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        await storageSet(STORAGE_KEY, JSON.stringify(settings));
+        setStatus("ok", tg && tg.CloudStorage ? "Saved to your Telegram account" : "Saved locally (open inside Telegram to sync)");
+        if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+      } catch (e) {
+        setStatus("err", "Failed to save - try again");
+      }
+    }, 350);
+  }
+
+  function applyToUI() {
+    document.getElementById("live-detect-toggle").checked = settings.live_detect;
+    document.getElementById("threshold-slider").value = settings.ignore_below;
+    document.getElementById("threshold-value").textContent = settings.ignore_below + "%";
+    document.querySelectorAll("#verbosity-segmented button").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.value === settings.verbosity);
+    });
+  }
+
+  (async () => {
+    const stored = await storageGet(STORAGE_KEY);
+    if (stored) {
+      try { settings = { ...DEFAULTS, ...JSON.parse(stored) }; } catch (e) { /* keep defaults */ }
+    }
+    applyToUI();
+    setStatus("ok", tg && tg.CloudStorage ? "Synced with your Telegram account" : "Opened outside Telegram - using this browser only");
+  })();
+
+  document.getElementById("live-detect-toggle").addEventListener("change", (e) => {
+    settings.live_detect = e.target.checked;
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred("light");
+    scheduleSave();
+  });
+
+  document.getElementById("threshold-slider").addEventListener("input", (e) => {
+    settings.ignore_below = Number(e.target.value);
+    document.getElementById("threshold-value").textContent = settings.ignore_below + "%";
+  });
+  document.getElementById("threshold-slider").addEventListener("change", scheduleSave);
+
+  document.getElementById("verbosity-segmented").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-value]");
+    if (!btn) return;
+    settings.verbosity = btn.dataset.value;
+    applyToUI();
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    scheduleSave();
+  });
+
+  // Account block - real data once opened inside Telegram (initDataUnsafe.user),
+  // demo placeholder otherwise.
+  if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+    const u = tg.initDataUnsafe.user;
+    document.getElementById("account-name").textContent = [u.first_name, u.last_name].filter(Boolean).join(" ");
+    document.getElementById("account-username").textContent = u.username ? "@" + u.username : "id " + u.id;
+  }
+
+  // Export/Delete are UI-only placeholders - no backend to call yet
+  // (see this file's own header comment). Both give real feedback
+  // instead of silently doing nothing, so the missing-backend gap is
+  // obvious during testing rather than looking broken.
+  document.getElementById("export-btn").addEventListener("click", () => {
+    if (tg && tg.showAlert) tg.showAlert("Export isn't wired to a backend yet - coming once the website is hosted.");
+    else alert("Export isn't wired to a backend yet.");
+  });
+  document.getElementById("delete-btn").addEventListener("click", () => {
+    const proceed = () => {
+      if (tg && tg.showAlert) tg.showAlert("Delete isn't wired to a backend yet - coming once the website is hosted.");
+      else alert("Delete isn't wired to a backend yet.");
+    };
+    if (tg && tg.showConfirm) tg.showConfirm("Delete all your saved data? (not yet functional)", () => proceed());
+    else proceed();
+  });
+  document.getElementById("upgrade-btn").addEventListener("click", () => {
+    if (tg && tg.showAlert) tg.showAlert("Subscription plans aren't wired up here yet - use /subscription in the chat for now.");
+    else alert("Subscription plans aren't wired up here yet.");
+  });
+</script>
+
 </body>
 </html>
