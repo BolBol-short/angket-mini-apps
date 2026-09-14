@@ -21,10 +21,18 @@
   MainButton/BackButton/SettingsButton do). Using the verified-real API
   here since these toggles need actual persistence, not just a demo.
 
-  The "Quick Commands" list is READ-ONLY reference, not live buttons -
-  a Mini App has no way to make the bot act on the user's behalf
-  without a real backend calling the Bot API server-side, which doesn't
-  exist yet. Flagged inline below too.
+  Language + Policy are REAL here (2026-09-14, direct user spec) -
+  Language actually re-renders this page's own copy (TEXT below) and
+  persists the choice; Policy shows the bot's REAL policy content
+  (copied verbatim from bot/response/translate/{en,km}.py's own
+  "policy" key so it's not a second, drifting copy of the wording -
+  if the bot's real policy text ever changes, update it here too).
+  Both still separate from the real bot's own /language and /policy -
+  this only changes what THIS PAGE shows, not the chat's language.
+
+  Usage/How-to-use stay reference-only (read-only rows below) - they're
+  dynamic (usage) or long-form (how-to) content not worth duplicating
+  here yet; only Language and Policy were asked for so far.
 -->
 <!doctype html>
 <html lang="en">
@@ -35,7 +43,7 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600;700&display=swap">
 <style>
   :root {
     --ink-950: #f6f5f1; --panel: #ffffff; --panel-line: #e4e1d8;
@@ -59,7 +67,7 @@
     margin: 0; min-height: 100vh;
     background: var(--tg-theme-bg-color, var(--ink-950));
     color: var(--tg-theme-text-color, var(--text));
-    font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: "IBM Plex Sans", "Noto Sans Khmer", -apple-system, BlinkMacSystemFont, sans-serif;
   }
   .mono { font-family: "IBM Plex Mono", monospace; }
   .card {
@@ -75,22 +83,14 @@
   .row-label { font-size: 15px; font-weight: 500; }
   .row-hint { font-size: 12px; color: var(--tg-theme-hint-color, var(--hint)); margin-top: 2px; }
 
-  /* Toggle switch */
   .switch { position: relative; width: 46px; height: 27px; flex: none; }
   .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
-  .switch .track {
-    position: absolute; inset: 0; border-radius: 999px; background: var(--panel-line);
-    transition: background 0.2s ease;
-  }
-  .switch .thumb {
-    position: absolute; top: 2px; left: 2px; width: 23px; height: 23px; border-radius: 50%;
-    background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.2s ease;
-  }
+  .switch .track { position: absolute; inset: 0; border-radius: 999px; background: var(--panel-line); transition: background 0.2s ease; }
+  .switch .thumb { position: absolute; top: 2px; left: 2px; width: 23px; height: 23px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.25); transition: transform 0.2s ease; }
   .switch input:checked + .track { background: var(--accent); }
   .switch input:checked + .track + .thumb { transform: translateX(19px); }
   .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-  /* Segmented control */
   .segmented { display: inline-flex; background: var(--panel-line); border-radius: 10px; padding: 3px; gap: 2px; }
   .segmented button {
     border: none; background: transparent; padding: 7px 14px; border-radius: 8px;
@@ -100,19 +100,23 @@
   .segmented button.active { background: var(--tg-theme-secondary-bg-color, var(--panel)); color: var(--tg-theme-text-color, var(--text)); }
 
   input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 4px; background: var(--panel-line); }
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.25); cursor: pointer; margin-top: -8px;
-  }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.25); cursor: pointer; margin-top: -8px; }
   input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: none; cursor: pointer; }
 
-  .btn-primary {
-    background: var(--tg-theme-button-color, var(--accent)); color: var(--tg-theme-button-text-color, var(--accent-text));
-  }
+  .btn-primary { background: var(--tg-theme-button-color, var(--accent)); color: var(--tg-theme-button-text-color, var(--accent-text)); }
   .status-line { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--tg-theme-hint-color, var(--hint)); }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--safe); flex: none; }
   .status-dot.err { background: var(--danger); }
   .status-dot.pending { background: var(--warn); }
+
+  .card-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; padding: 14px 16px; }
+  .chevron { width: 18px; height: 18px; color: var(--tg-theme-hint-color, var(--hint)); transition: transform 0.25s ease; flex: none; }
+  .chevron.collapsed { transform: rotate(-90deg); }
+  .collapsible-body { overflow: hidden; transition: grid-template-rows 0.25s ease; display: grid; grid-template-rows: 1fr; }
+  .collapsible-body.collapsed { grid-template-rows: 0fr; }
+  .collapsible-body > div { overflow: hidden; }
+  .policy-content { padding: 0 16px 16px; font-size: 13px; line-height: 1.6; }
+  .policy-content b { font-weight: 600; }
 </style>
 </head>
 <body class="pb-10">
@@ -121,40 +125,55 @@
 
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-xl font-bold m-0">⚙️ Settings</h1>
-      <p class="text-sm m-0 mt-0.5" style="color: var(--tg-theme-hint-color, var(--hint));">Manage your Angket Bot preferences</p>
+      <h1 class="text-xl font-bold m-0">⚙️ <span data-i18n="settings_title">Settings</span></h1>
+      <p class="text-sm m-0 mt-0.5" style="color: var(--tg-theme-hint-color, var(--hint));" data-i18n="settings_subtitle">Manage your Angket Bot preferences</p>
     </div>
   </div>
 
+  <!-- Language (REAL - re-renders this whole page) -->
+  <section class="card">
+    <p class="eyebrow px-4 pt-3 pb-1" data-i18n="language">Language</p>
+    <div class="row">
+      <div>
+        <div class="row-label" data-i18n="interface_language">Interface language</div>
+        <div class="row-hint" data-i18n="language_hint">Changes this settings screen only, not the chat</div>
+      </div>
+      <div class="segmented" id="lang-segmented">
+        <button data-value="en" type="button">English</button>
+        <button data-value="km" type="button">ខ្មែរ</button>
+      </div>
+    </div>
+  </section>
+
   <!-- Account -->
   <section class="card">
-    <p class="eyebrow px-4 pt-3 pb-1">Account</p>
+    <p class="eyebrow px-4 pt-3 pb-1" data-i18n="account">Account</p>
     <div class="row">
       <div>
         <div class="row-label" id="account-name">Guest</div>
-        <div class="row-hint" id="account-username">Open this from Telegram to see your account</div>
+        <div class="row-hint" id="account-username" data-i18n="open_from_telegram">Open this from Telegram to see your account</div>
       </div>
     </div>
     <div class="row">
-      <div class="row-label">Export my data</div>
-      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg btn-primary" id="export-btn">Export</button>
+      <div class="row-label" data-i18n="export_data">Export my data</div>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg btn-primary" id="export-btn" data-i18n="export_btn">Export</button>
     </div>
     <div class="row">
       <div>
-        <div class="row-label" style="color: var(--danger);">Delete my data</div>
-        <div class="row-hint">Removes your scan history and preferences</div>
+        <div class="row-label" style="color: var(--danger);" data-i18n="delete_data">Delete my data</div>
+        <div class="row-hint" data-i18n="delete_hint">Removes your scan history and preferences</div>
       </div>
-      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg" style="color: var(--danger); border: 1px solid var(--danger); background: transparent;" id="delete-btn">Delete</button>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg" style="color: var(--danger); border: 1px solid var(--danger); background: transparent;" id="delete-btn" data-i18n="delete_btn">Delete</button>
     </div>
   </section>
 
   <!-- Live Detect -->
   <section class="card">
-    <p class="eyebrow px-4 pt-3 pb-1">Automation</p>
+    <p class="eyebrow px-4 pt-3 pb-1" data-i18n="automation">Automation</p>
     <div class="row">
       <div>
-        <div class="row-label">Live Detect</div>
-        <div class="row-hint">Auto-scan messages in your connected business chats</div>
+        <div class="row-label" data-i18n="live_detect">Live Detect</div>
+        <div class="row-hint" data-i18n="live_detect_hint">Auto-scan messages in your connected business chats</div>
       </div>
       <label class="switch">
         <input type="checkbox" id="live-detect-toggle" checked>
@@ -166,48 +185,62 @@
 
   <!-- Scan behavior -->
   <section class="card">
-    <p class="eyebrow px-4 pt-3 pb-1">Scan behavior</p>
+    <p class="eyebrow px-4 pt-3 pb-1" data-i18n="scan_behavior">Scan behavior</p>
     <div class="row" style="flex-direction: column; align-items: stretch; gap: 8px;">
       <div class="flex items-center justify-between">
-        <div class="row-label">Ignore results below</div>
+        <div class="row-label" data-i18n="ignore_below">Ignore results below</div>
         <span class="mono text-sm font-semibold" id="threshold-value">25%</span>
       </div>
       <input type="range" id="threshold-slider" min="0" max="80" step="5" value="25">
-      <div class="row-hint">Verdicts scoring under this risk % won't be flagged to you</div>
+      <div class="row-hint" data-i18n="ignore_hint">Verdicts scoring under this risk % won't be flagged to you</div>
     </div>
     <div class="row">
       <div>
-        <div class="row-label">Message detail</div>
-        <div class="row-hint">How much explanation a reply includes</div>
+        <div class="row-label" data-i18n="message_detail">Message detail</div>
+        <div class="row-hint" data-i18n="message_detail_hint">How much explanation a reply includes</div>
       </div>
       <div class="segmented" id="verbosity-segmented">
-        <button data-value="reduced" type="button">Reduced</button>
-        <button data-value="full" type="button" class="active">Full</button>
+        <button data-value="reduced" type="button" data-i18n="reduced">Reduced</button>
+        <button data-value="full" type="button" class="active" data-i18n="full">Full</button>
       </div>
     </div>
   </section>
 
-  <!-- Language & help (existing commands, read-only reference) -->
+  <!-- Policy (REAL content, same text as the bot's own /policy) -->
   <section class="card">
-    <p class="eyebrow px-4 pt-3 pb-1">Commands</p>
-    <p class="text-xs px-4 pb-2" style="color: var(--tg-theme-hint-color, var(--hint));">
+    <div class="card-head" id="policy-toggle" role="button" tabindex="0" aria-expanded="false">
+      <div>
+        <p class="eyebrow m-0" data-i18n="policy">Policy</p>
+        <p class="text-xs mt-0.5" style="color: var(--tg-theme-hint-color, var(--hint));" data-i18n="policy_view_hint">Tap to expand - same text as /policy in chat</p>
+      </div>
+      <svg class="chevron collapsed" id="policy-chevron" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="collapsible-body collapsed" id="policy-body"><div>
+      <div class="policy-content" id="policy-text"></div>
+    </div></div>
+  </section>
+
+  <!-- Commands (reference only - not yet real in-app actions) -->
+  <section class="card">
+    <p class="eyebrow px-4 pt-3 pb-1" data-i18n="commands">Commands</p>
+    <p class="text-xs px-4 pb-2" style="color: var(--tg-theme-hint-color, var(--hint));" data-i18n="commands_hint">
       Reference only for now - type these directly in the chat with Angket Bot.
     </p>
-    <div class="row"><div class="row-label mono text-sm">/language</div><div class="row-hint">Switch between English and Khmer</div></div>
-    <div class="row"><div class="row-label mono text-sm">/howto</div><div class="row-hint">Learn how to use Angket</div></div>
-    <div class="row"><div class="row-label mono text-sm">/usage</div><div class="row-hint">Check your daily scan quota</div></div>
-    <div class="row"><div class="row-label mono text-sm">/policy</div><div class="row-hint">View Angket's policy</div></div>
+    <div class="row"><div class="row-label mono text-sm">/howto</div><div class="row-hint" data-i18n="cmd_howto">Learn how to use Angket</div></div>
+    <div class="row"><div class="row-label mono text-sm">/usage</div><div class="row-hint" data-i18n="cmd_usage">Check your daily scan quota</div></div>
   </section>
 
   <!-- Subscription -->
   <section class="card">
-    <p class="eyebrow px-4 pt-3 pb-1">Subscription</p>
+    <p class="eyebrow px-4 pt-3 pb-1" data-i18n="subscription">Subscription</p>
     <div class="row">
       <div>
-        <div class="row-label">Current plan</div>
-        <div class="row-hint" id="plan-label">Freemium</div>
+        <div class="row-label" data-i18n="current_plan">Current plan</div>
+        <div class="row-hint" id="plan-label" data-i18n="freemium">Freemium</div>
       </div>
-      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg btn-primary" id="upgrade-btn">Upgrade</button>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg btn-primary" id="upgrade-btn" data-i18n="upgrade">Upgrade</button>
     </div>
   </section>
 
@@ -215,16 +248,16 @@
   <section class="card">
     <div class="row">
       <div>
-        <div class="row-label">Angket website</div>
-        <div class="row-hint">Not hosted yet - coming soon</div>
+        <div class="row-label" data-i18n="website">Angket website</div>
+        <div class="row-hint" data-i18n="website_hint">Not hosted yet - coming soon</div>
       </div>
-      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg" style="color: var(--tg-theme-hint-color, var(--hint)); border: 1px solid var(--panel-line); background: transparent;" disabled>Visit</button>
+      <button class="text-sm font-semibold px-3 py-1.5 rounded-lg" style="color: var(--tg-theme-hint-color, var(--hint)); border: 1px solid var(--panel-line); background: transparent;" disabled data-i18n="visit">Visit</button>
     </div>
   </section>
 
   <div class="status-line justify-center pt-1" id="save-status">
     <span class="status-dot" id="save-dot"></span>
-    <span id="save-text">Loading your settings…</span>
+    <span id="save-text" data-i18n="loading">Loading your settings…</span>
   </div>
 
 </div>
@@ -233,37 +266,103 @@
   const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
   if (tg) { tg.ready(); tg.expand(); }
 
-  const STORAGE_KEY = "angket_settings_v1";
-  const DEFAULTS = { live_detect: true, ignore_below: 25, verbosity: "full" };
+  // Small subset of this page's own copy, in the same {en:{...}, km:{...}}
+  // shape bot/response/translate/ and bot/response/buttons.py already use
+  // - kept separate from POLICY below since that's REAL bot content
+  // copied verbatim, not this page's own new UI strings.
+  const TEXT = {
+    en: {
+      settings_title: "Settings", settings_subtitle: "Manage your Angket Bot preferences",
+      language: "Language", interface_language: "Interface language", language_hint: "Changes this settings screen only, not the chat",
+      account: "Account", open_from_telegram: "Open this from Telegram to see your account",
+      export_data: "Export my data", export_btn: "Export",
+      delete_data: "Delete my data", delete_hint: "Removes your scan history and preferences", delete_btn: "Delete",
+      automation: "Automation", live_detect: "Live Detect", live_detect_hint: "Auto-scan messages in your connected business chats",
+      scan_behavior: "Scan behavior", ignore_below: "Ignore results below", ignore_hint: "Verdicts scoring under this risk % won't be flagged to you",
+      message_detail: "Message detail", message_detail_hint: "How much explanation a reply includes", reduced: "Reduced", full: "Full",
+      policy: "Policy", policy_view_hint: "Tap to expand - same text as /policy in chat",
+      commands: "Commands", commands_hint: "Reference only for now - type these directly in the chat with Angket Bot.",
+      cmd_howto: "Learn how to use Angket", cmd_usage: "Check your daily scan quota",
+      subscription: "Subscription", current_plan: "Current plan", freemium: "Freemium", upgrade: "Upgrade",
+      website: "Angket website", website_hint: "Not hosted yet - coming soon", visit: "Visit",
+      saving: "Saving…", saved_cloud: "Saved to your Telegram account", saved_local: "Saved locally (open inside Telegram to sync)", save_failed: "Failed to save - try again",
+      synced: "Synced with your Telegram account", outside_telegram: "Opened outside Telegram - using this browser only", loading: "Loading your settings…",
+      guest: "Guest",
+    },
+    km: {
+      settings_title: "ការកំណត់", settings_subtitle: "គ្រប់គ្រងចំណូលចិត្តរបស់អ្នកនៅលើ Angket Bot",
+      language: "ភាសា", interface_language: "ភាសាសម្រាប់អេក្រង់នេះ", language_hint: "ប៉ះពាល់តែអេក្រង់ការកំណត់នេះ មិនប៉ះពាល់ភាសានៅក្នុងបន្ទប់ជជែកទេ",
+      account: "គណនី", open_from_telegram: "បើកពី Telegram ដើម្បីមើលគណនីរបស់អ្នក",
+      export_data: "នាំចេញទិន្នន័យរបស់ខ្ញុំ", export_btn: "នាំចេញ",
+      delete_data: "លុបទិន្នន័យរបស់ខ្ញុំ", delete_hint: "លុបប្រវត្តិស្កេន និងចំណូលចិត្តរបស់អ្នក", delete_btn: "លុប",
+      automation: "ស្វ័យប្រវត្តិកម្ម", live_detect: "ការរកឃើញផ្ទាល់", live_detect_hint: "ស្កេនសារដោយស្វ័យប្រវត្តិនៅក្នុងបន្ទប់អាជីវកម្មដែលបានភ្ជាប់",
+      scan_behavior: "ឥរិយាបថស្កេន", ignore_below: "មិនរាយការណ៍លទ្ធផលទាបជាង", ignore_hint: "លទ្ធផលដែលមានហានិភ័យក្រោមភាគរយនេះ នឹងមិនត្រូវបានជូនដំណឹងទេ",
+      message_detail: "លម្អិតសារ", message_detail_hint: "ចំនួនការពន្យល់ក្នុងចម្លើយតប", reduced: "កាត់បន្ថយ", full: "ពេញលេញ",
+      policy: "គោលការណ៍", policy_view_hint: "ចុចដើម្បីមើល - អត្ថបទដូចគ្នានឹង /policy ក្នុងបន្ទប់ជជែក",
+      commands: "ពាក្យបញ្ជា", commands_hint: "សម្រាប់យោងតែប៉ុណ្ណោះ - វាយពាក្យទាំងនេះផ្ទាល់នៅក្នុងបន្ទប់ជជែកជាមួយ Angket Bot។",
+      cmd_howto: "ស្វែងយល់ពីរបៀបប្រើប្រាស់ Angket", cmd_usage: "ពិនិត្យកូតាស្កេនប្រចាំថ្ងៃរបស់អ្នក",
+      subscription: "ការជាវ", current_plan: "គម្រោងបច្ចុប្បន្ន", freemium: "ឥតគិតថ្លៃ", upgrade: "ដំឡើងកម្រិត",
+      website: "គេហទំព័រ Angket", website_hint: "មិនទាន់អនឡាញនៅឡើយទេ - ឆាប់ៗនេះ", visit: "ទស្សនា",
+      saving: "កំពុងរក្សាទុក…", saved_cloud: "បានរក្សាទុកទៅគណនី Telegram របស់អ្នក", saved_local: "បានរក្សាទុកក្នុងម៉ាស៊ីននេះ (បើកពី Telegram ដើម្បីធ្វើសមកាលកម្ម)", save_failed: "រក្សាទុកមិនបានសម្រេច - សូមព្យាយាមម្តងទៀត",
+      synced: "បានធ្វើសមកាលកម្មជាមួយគណនី Telegram របស់អ្នក", outside_telegram: "បើកនៅក្រៅ Telegram - ប្រើតែក្នុងកម្មវិធីរុករកនេះប៉ុណ្ណោះ", loading: "កំពុងផ្ទុកការកំណត់របស់អ្នក…",
+      guest: "ភ្ញៀវ",
+    },
+  };
+
+  // Copied VERBATIM from bot/response/translate/{en,km}.py's own
+  // "policy" key (2026-09-14) - same wording the real /policy command
+  // shows in chat. If that ever changes, update it here too - this is
+  // a duplicated copy, not a shared source, since this page has no
+  // backend to fetch it from live yet.
+  const POLICY = {
+    en: `<b>Privacy</b><br>
+      • Information needed to provide and improve the scanning service.<br>
+      • Messages, files, and URLs you submit are processed to analyze potential security risks.<br>
+      • We only keep submitted data for as long as necessary according to our data-retention policy.<br>
+      • Your information is not shared with third parties except where necessary to provide the service or when required by law.<br><br>
+      <b>Terms of Use</b><br>
+      • <b>What Angket is for:</b> Angket helps users identify potentially suspicious messages, files, and links.<br>
+      • <b>Security analysis has limitations:</b> Angket's results are an assessment, not a guarantee. A message marked as safe may still be harmful, and a suspicious result does not necessarily mean something is a scam.<br>
+      • <b>Your responsibility:</b> Always verify important information yourself before clicking links, sharing information, or sending money.<br><br>
+      <b>Important</b><br>
+      Angket is a security-assistance tool. It does not guarantee that every threat or scam will be detected.`,
+    km: `<b>ឯកជនភាព</b><br>
+      • យើងអាចប្រមូលព័ត៌មានដែលចាំបាច់ ដើម្បីកែលម្អសេវាកម្មពិនិត្យសុវត្ថិភាព។<br>
+      • សារ ឯកសារ និង URL ដែលអ្នកផ្ញើ ត្រូវបានដំណើរការ ដើម្បីវិភាគហានិភ័យផ្នែកសុវត្ថិភាព។<br>
+      • យើងរក្សាទុកទិន្នន័យដែលអ្នកបានផ្ញើ ត្រឹមរយៈពេលដែលចាំបាច់ ស្របតាមគោលការណ៍រក្សាទុកទិន្នន័យរបស់យើង។<br>
+      • យើងមិនចែករំលែកព័ត៌មានរបស់អ្នកទៅភាគីទីបីឡើយ លើកលែងតែចាំបាច់សម្រាប់ការផ្តល់សេវាកម្ម ឬតម្រូវដោយច្បាប់។<br><br>
+      <b>លក្ខខណ្ឌប្រើប្រាស់</b><br>
+      • <b>គោលបំណងរបស់ Angket:</b> Angket ជួយអ្នកកំណត់អត្តសញ្ញាណសារ ឯកសារ និង តំណភ្ជាប់ ដែលអាចមានភាពគួរឱ្យសង្ស័យ។<br>
+      • <b>ការវិភាគមានកម្រិត:</b> លទ្ធផលពី Angket គឺជាការវាយតម្លៃ មិនមែនជាការធានាថាមាតិកានោះមានសុវត្ថិភាព ឬជាការឆបោកជាក់លាក់ឡើយ។ សារដែលត្រូវបានសម្គាល់ថាមានសុវត្ថិភាព ក៏អាចមានគ្រោះថ្នាក់បាន ហើយលទ្ធផលដែលគួរឱ្យសង្ស័យ ក៏មិនមានន័យថាវាជាការឆបោកជានិច្ចនោះទេ។<br><br>
+      • <b>ការទទួលខុសត្រូវរបស់អ្នក:</b> តែងតែផ្ទៀងផ្ទាត់ព័ត៌មានសំខាន់ៗដោយខ្លួនឯង មុនពេលចុចតំណភ្ជាប់ ចែករំលែកព័ត៌មាន ឬផ្ញើប្រាក់។<br><br>
+      <b>ព័ត៌មានសំខាន់</b><br>
+      Angket គឺជាឧបករណ៍ជំនួយផ្នែកសុវត្ថិភាព។ វាមិនអាចធានាថានឹងរកឃើញការគំរាមកំហែង ឬការឆបោកគ្រប់ប្រភេទបានទាំងអស់នោះទេ។`,
+  };
+
+  const SETTINGS_KEY = "angket_settings_v1";
+  const DEFAULTS = { live_detect: true, ignore_below: 25, verbosity: "full", lang: "en" };
 
   const saveDot = document.getElementById("save-dot");
   const saveText = document.getElementById("save-text");
 
-  function setStatus(kind, text) {
+  function setStatus(kind, key) {
     saveDot.className = "status-dot" + (kind === "err" ? " err" : kind === "pending" ? " pending" : "");
-    saveText.textContent = text;
+    saveText.textContent = t(key);
+    saveText.removeAttribute("data-i18n");
   }
 
-  // CloudStorage (real, documented Telegram WebApp API - persists per
-  // user, tied to this bot, no backend needed) with a localStorage
-  // fallback purely so this page is still testable in a plain browser
-  // (CloudStorage is undefined outside Telegram's webview).
+  function t(key) { return (TEXT[settings.lang] && TEXT[settings.lang][key]) || TEXT.en[key] || key; }
+
   function storageGet(key) {
     return new Promise((resolve) => {
-      if (tg && tg.CloudStorage) {
-        tg.CloudStorage.getItem(key, (err, value) => resolve(err ? null : value));
-      } else {
-        resolve(localStorage.getItem(key));
-      }
+      if (tg && tg.CloudStorage) tg.CloudStorage.getItem(key, (err, value) => resolve(err ? null : value));
+      else resolve(localStorage.getItem(key));
     });
   }
   function storageSet(key, value) {
     return new Promise((resolve, reject) => {
-      if (tg && tg.CloudStorage) {
-        tg.CloudStorage.setItem(key, value, (err) => err ? reject(err) : resolve());
-      } else {
-        try { localStorage.setItem(key, value); resolve(); } catch (e) { reject(e); }
-      }
+      if (tg && tg.CloudStorage) tg.CloudStorage.setItem(key, value, (err) => err ? reject(err) : resolve());
+      else { try { localStorage.setItem(key, value); resolve(); } catch (e) { reject(e); } }
     });
   }
 
@@ -271,17 +370,27 @@
   let saveTimer = null;
 
   function scheduleSave() {
-    setStatus("pending", "Saving…");
+    setStatus("pending", "saving");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
       try {
-        await storageSet(STORAGE_KEY, JSON.stringify(settings));
-        setStatus("ok", tg && tg.CloudStorage ? "Saved to your Telegram account" : "Saved locally (open inside Telegram to sync)");
+        await storageSet(SETTINGS_KEY, JSON.stringify(settings));
+        setStatus("ok", tg && tg.CloudStorage ? "saved_cloud" : "saved_local");
         if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
       } catch (e) {
-        setStatus("err", "Failed to save - try again");
+        setStatus("err", "save_failed");
       }
     }, 350);
+  }
+
+  function applyI18n() {
+    document.documentElement.lang = settings.lang;
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    document.querySelectorAll("#lang-segmented button").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.value === settings.lang);
+    });
   }
 
   function applyToUI() {
@@ -291,16 +400,29 @@
     document.querySelectorAll("#verbosity-segmented button").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.value === settings.verbosity);
     });
+    document.getElementById("policy-text").innerHTML = POLICY[settings.lang] || POLICY.en;
+    applyI18n();
   }
 
   (async () => {
-    const stored = await storageGet(STORAGE_KEY);
+    const stored = await storageGet(SETTINGS_KEY);
     if (stored) {
       try { settings = { ...DEFAULTS, ...JSON.parse(stored) }; } catch (e) { /* keep defaults */ }
+    } else if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.language_code === "km") {
+      settings.lang = "km"; // first-open guess from Telegram's own client language, same default the real bot's get_user_lang uses on /start
     }
     applyToUI();
-    setStatus("ok", tg && tg.CloudStorage ? "Synced with your Telegram account" : "Opened outside Telegram - using this browser only");
+    setStatus("ok", tg && tg.CloudStorage ? "synced" : "outside_telegram");
   })();
+
+  document.getElementById("lang-segmented").addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-value]");
+    if (!btn) return;
+    settings.lang = btn.dataset.value;
+    applyToUI();
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+    scheduleSave();
+  });
 
   document.getElementById("live-detect-toggle").addEventListener("change", (e) => {
     settings.live_detect = e.target.checked;
@@ -323,33 +445,42 @@
     scheduleSave();
   });
 
-  // Account block - real data once opened inside Telegram (initDataUnsafe.user),
-  // demo placeholder otherwise.
+  function setPolicyCollapsed(collapsed) {
+    document.getElementById("policy-body").classList.toggle("collapsed", collapsed);
+    document.getElementById("policy-chevron").classList.toggle("collapsed", collapsed);
+    document.getElementById("policy-toggle").setAttribute("aria-expanded", String(!collapsed));
+  }
+  function togglePolicy() {
+    setPolicyCollapsed(!document.getElementById("policy-body").classList.contains("collapsed"));
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+  }
+  document.getElementById("policy-toggle").addEventListener("click", togglePolicy);
+  document.getElementById("policy-toggle").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePolicy(); }
+  });
+
   if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
     const u = tg.initDataUnsafe.user;
     document.getElementById("account-name").textContent = [u.first_name, u.last_name].filter(Boolean).join(" ");
     document.getElementById("account-username").textContent = u.username ? "@" + u.username : "id " + u.id;
+    document.getElementById("account-username").removeAttribute("data-i18n");
   }
 
-  // Export/Delete are UI-only placeholders - no backend to call yet
-  // (see this file's own header comment). Both give real feedback
-  // instead of silently doing nothing, so the missing-backend gap is
-  // obvious during testing rather than looking broken.
   document.getElementById("export-btn").addEventListener("click", () => {
-    if (tg && tg.showAlert) tg.showAlert("Export isn't wired to a backend yet - coming once the website is hosted.");
-    else alert("Export isn't wired to a backend yet.");
+    const msg = "Export isn't wired to a backend yet - coming once the website is hosted.";
+    if (tg && tg.showAlert) tg.showAlert(msg); else alert(msg);
   });
   document.getElementById("delete-btn").addEventListener("click", () => {
     const proceed = () => {
-      if (tg && tg.showAlert) tg.showAlert("Delete isn't wired to a backend yet - coming once the website is hosted.");
-      else alert("Delete isn't wired to a backend yet.");
+      const msg = "Delete isn't wired to a backend yet - coming once the website is hosted.";
+      if (tg && tg.showAlert) tg.showAlert(msg); else alert(msg);
     };
     if (tg && tg.showConfirm) tg.showConfirm("Delete all your saved data? (not yet functional)", () => proceed());
     else proceed();
   });
   document.getElementById("upgrade-btn").addEventListener("click", () => {
-    if (tg && tg.showAlert) tg.showAlert("Subscription plans aren't wired up here yet - use /subscription in the chat for now.");
-    else alert("Subscription plans aren't wired up here yet.");
+    const msg = "Subscription plans aren't wired up here yet - use /subscription in the chat for now.";
+    if (tg && tg.showAlert) tg.showAlert(msg); else alert(msg);
   });
 </script>
 
